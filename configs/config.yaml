@@ -1,0 +1,45 @@
+project_name: dementia-diet-policy
+random_state: 42
+output_dir: models
+
+# Path to your dataset directory (update if needed)
+dataset:
+  path: "C:\\Users\\H P\\Downloads\\jovac presentation\\extracted\\151621-V1-20251014T110811Z-1-001\\151621-V1\\Data\\2011_2014"
+  file_pattern: "*.csv"  # all CSVs in this folder will be concatenated; adjust as needed
+
+columns:
+  id: seqn
+  treatment: female                   # demo: use female as binary treatment (1=female)
+  outcome: low_global_re              # demo: binary cognition risk proxy
+  time: null                          # not using survival/time-to-event in this demo
+  features_numeric:
+    - ridageyr
+  features_categorical:
+    - year
+    - race
+    - edu_cat
+    - age_cat
+    - cfq_present
+
+preprocessing:
+  imputation_strategy: iterative      # iterative ~= MICE; alternatives: mean, median
+  scale_numeric: true
+
+causal:
+  propensity_model: logistic          # logistic | xgboost
+  estimator: dr                       # ipw | dr (doubly robust)
+
+h te_model:
+  method: dr_learner                  # dr_learner | t_learner
+  base_learner: xgboost               # xgboost | lightgbm | random_forest
+
+policy:
+  type: threshold                     # threshold-based policy on CATE
+  cate_threshold: 0.02                # recommend diet if predicted risk reduction >= 2%
+  constraints:
+    max_sodium_mg: 2300               # example nutritional constraint
+    min_fiber_g: 25                   # example nutritional constraint
+
+app:
+  port_streamlit: 8501
+  port_fastapi: 8000
