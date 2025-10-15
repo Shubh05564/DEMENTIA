@@ -23,7 +23,7 @@ st.sidebar.header("Data source")
 data_source = st.sidebar.radio(
     "Choose data source",
     ["Configured path", "Upload CSVs"],
-    index=0,
+    index=1,
 )
 st.sidebar.write(f"Configured dataset path: {cfg.dataset.path}")
 

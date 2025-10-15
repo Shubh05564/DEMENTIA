@@ -4,7 +4,7 @@ output_dir: models
 
 # Path to your dataset directory (update if needed)
 dataset:
-  path: "C:\\Users\\H P\\Downloads\\jovac presentation\\extracted\\151621-V1-20251014T110811Z-1-001\\151621-V1\\Data\\2011_2014"
+  path: "sample_data"
   file_pattern: "*.csv"  # all CSVs in this folder will be concatenated; adjust as needed
 
 columns:
