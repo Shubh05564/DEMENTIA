@@ -3,14 +3,23 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import numpy as np
 import pandas as pd
+import joblib
+from pathlib import Path
 
 from src.config import Config
-from src.data.preprocess import preprocess
-from src.models.heterogeneous_te import CATEModel
 from src.policy.optimizer import Policy
 
 app = FastAPI(title="Dementia Diet Policy API")
 cfg = Config.load("configs/config.yaml")
+
+# Attempt to load trained artifacts if present
+MODELS_DIR = Path(cfg.output_dir)
+try:
+    CATE_MODEL = joblib.load(MODELS_DIR / "cate_model.joblib")
+    TRANSFORMER = joblib.load(MODELS_DIR / "transformer.joblib")
+except Exception:
+    CATE_MODEL = None
+    TRANSFORMER = None
 
 
 class PatientRequest(BaseModel):
@@ -18,30 +27,30 @@ class PatientRequest(BaseModel):
 
 
 class RecommendationResponse(BaseModel):
-    cate: float
+    cate: float | None
     recommend: int
 
 
 @app.post("/recommend", response_model=RecommendationResponse)
 def recommend(req: PatientRequest):
     # Build a one-row DataFrame for the patient
-    x = pd.DataFrame([req.features])
-    # Minimal preprocessing: assume training transformer is not persisted in this MVP
-    # For a production system, persist and load the fitted transformer and model artifacts
-    # Here, we fit on the fly (not ideal) or expect the app to be called after training pipeline runs
-    # Return a placeholder if not trained
-    # For now: use simple defaults
-    cate_model = CATEModel(method=cfg.hte_model.method, base=cfg.hte_model.base_learner, random_state=cfg.random_state)
-    # Without training, we cannot produce a real estimate; return neutral response
+    x_raw = pd.DataFrame([req.features])
+    if CATE_MODEL is None or TRANSFORMER is None:
+        return RecommendationResponse(cate=None, recommend=0)
+
+    # Transform features using the persisted transformer
     try:
-        cate = float(np.nan)
-        rec = 0
+        xt = TRANSFORMER.transform(x_raw)
+        # Model expects a 2D array; wrap into DataFrame (columns not used by model)
+        X_df = pd.DataFrame(xt)
+        cate_val = float(np.ravel(CATE_MODEL.predict_effect(X_df))[0])
+        policy = Policy(cate_threshold=cfg.policy.cate_threshold, constraints=cfg.policy.constraints)
+        rec = int(cate_val >= cfg.policy.cate_threshold)
+        return RecommendationResponse(cate=cate_val, recommend=rec)
     except Exception:
-        cate = float("nan")
-        rec = 0
-    return RecommendationResponse(cate=cate, recommend=rec)
+        return RecommendationResponse(cate=None, recommend=0)
 
 
 @app.get("/")
 def root():
-    return {"status": "ok", "message": "Use POST /recommend with feature dict."}
+    return {"status": "ok", "message": "Use POST /recommend with feature dict.", "artifacts_loaded": bool(CATE_MODEL is not None)}

@@ -1,0 +1,1 @@
+from src.api.main import app  # Expose FastAPI app for Vercel Python
